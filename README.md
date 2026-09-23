@@ -83,8 +83,8 @@ sudo ufw allow 9001:9003/tcp
 ```bash
 cd /tmp
 wget https://gethstore.blob.core.windows.net/builds/geth-linux-amd64-1.13.8-b20b4a71.tar.gz
-tar -xzf geth-linux-amd64-1.13.8-13ee5a58.tar.gz
-sudo mv geth-linux-amd64-1.13.8-13ee5a58/geth /usr/local/bin/
+tar -xzf geth-linux-amd64-1.13.8-b20b4a71.tar.gz
+sudo mv geth-linux-amd64-1.13.8-b20b4a71.tar.gz/geth /usr/local/bin/
 geth version
 ```
 
