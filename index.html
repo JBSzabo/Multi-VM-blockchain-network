@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clique Monitor</title>
+    <script src="https://cdn.jsdelivr.net/npm/vis-network@9.1.6/dist/vis-network.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg: #0f1419; --surface: #1a1f2e; --surface2: #252b3b;
+            --border: #3a4152; --text: #e4e7ec; --text2: #9ca3af;
+            --blue: #3b82f6; --green: #10b981; --amber: #f59e0b; --red: #ef4444;
+        }
+        body { font-family: 'IBM Plex Sans', sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; }
+        
+        /* HEADER */
+        header { background: var(--surface); border-bottom: 2px solid var(--blue); padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+        .h-left h1 { font-family: 'JetBrains Mono', monospace; font-size: 1.1rem; font-weight: 700; color: #fff; }
+        .h-left p { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: var(--text2); margin-top: 2px; }
+        .h-pills { display: flex; gap: 8px; flex-wrap: wrap; }
+        .pill { display: flex; align-items: center; gap: 6px; padding: 5px 12px; background: var(--surface2); border: 1px solid var(--border); border-radius: 16px; font-size: 0.75rem; font-family: 'JetBrains Mono', monospace; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; }
+        .dot.ok { background: var(--green); box-shadow: 0 0 0 2px rgba(16,185,129,.3); }
+        .dot.bad { background: var(--red); box-shadow: 0 0 0 2px rgba(239,68,68,.3); }
+        
+        /* LAYOUT */
+        .page { padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+        .row { display: grid; gap: 16px; }
+        .r4 { grid-template-columns: repeat(4, 1fr); }
+        .r3 { grid-template-columns: repeat(3, 1fr); }
+        .r2 { grid-template-columns: repeat(2, 1fr); }
+        @media (max-width: 1200px) { .r4 { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 768px) { .r4, .r3, .r2 { grid-template-columns: 1fr; } }
+        
+        /* PANEL */
+        .pnl { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+        .pnl-h { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: var(--surface2); border-bottom: 1px solid var(--border); }
+        .pnl-t { font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text2); }
+        .badge { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; font-weight: 700; padding: 3px 8px; border-radius: 10px; background: var(--surface2); border: 1px solid var(--border); color: var(--text2); }
+        .badge.red { background: rgba(239,68,68,.1); border-color: var(--red); color: var(--red); }
+        .pnl-b { padding: 16px; }
+        
+        /* STATS */
+        .stat-l { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text2); margin-bottom: 6px; }
+        .stat-v { font-family: 'JetBrains Mono', monospace; font-size: 1.8rem; font-weight: 700; line-height: 1; }
+        .stat-v.blue { color: var(--blue); }
+        .stat-v.green { color: var(--green); }
+        .stat-v.amber { color: var(--amber); }
+        .stat-v.red { color: var(--red); }
+        
+        /* BLOCKCHAIN - GRID WRAP */
+        #chainGrid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fill, 88px); 
+            gap: 12px; 
+            padding: 16px; 
+            background: var(--bg);
+            border-radius: 8px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .bk { 
+            width: 88px; 
+            background: var(--surface2); 
+            border: 2px solid var(--border); 
+            border-radius: 6px; 
+            padding: 8px; 
+            cursor: pointer; 
+            transition: all 0.15s; 
+            position: relative;
+        }
+        .bk:hover { border-color: var(--blue); transform: translateY(-2px); }
+        .bk.sel { border-color: var(--blue); background: rgba(59,130,246,.1); box-shadow: 0 0 0 2px rgba(59,130,246,.3); }
+        .bk.gen { border-color: var(--amber); }
+        .bk-n { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; font-weight: 700; color: var(--blue); margin-bottom: 4px; }
+        .bk-h { font-family: 'JetBrains Mono', monospace; font-size: 0.6rem; color: var(--text2); word-break: break-all; margin-bottom: 4px; line-height: 1.2; }
+        .bk-tx { font-size: 0.65rem; color: var(--text2); display: flex; align-items: center; gap: 4px; }
+        .bk-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--green); }
+        
+        /* BLOCK DETAIL */
+        #detail { display: none; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-top: 12px; }
+        #detail.show { display: block; }
+        .det-h { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: var(--surface2); border-bottom: 1px solid var(--border); }
+        .det-t { font-family: 'JetBrains Mono', monospace; font-size: 0.9rem; font-weight: 700; color: var(--blue); }
+        .det-x { background: transparent; border: 1px solid var(--border); color: var(--text2); padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 0.7rem; font-family: 'JetBrains Mono', monospace; }
+        .det-x:hover { border-color: var(--text); color: var(--text); }
+        .det-g { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1px; background: var(--border); }
+        .det-f { background: var(--surface); padding: 12px 16px; }
+        .det-l { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text2); font-weight: 700; margin-bottom: 4px; }
+        .det-v { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--text); word-break: break-all; line-height: 1.3; }
+        .det-v.blue { color: var(--blue); }
+        .det-v.green { color: var(--green); }
+        
+        /* GRAPH */
+        #graph { width: 100%; height: 280px; background: var(--bg); border-radius: 8px; }
+        
+        /* EVENTS */
+        .evs { max-height: 320px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+        .ev { padding: 10px 12px; border-left: 3px solid var(--blue); background: rgba(59,130,246,.08); border-radius: 0 4px 4px 0; font-size: 0.8rem; }
+        .ev.fork { border-left-color: var(--red); background: rgba(239,68,68,.08); }
+        .ev.stall { border-left-color: var(--red); background: rgba(239,68,68,.08); }
+        .ev.seal { border-left-color: var(--green); background: rgba(16,185,129,.08); }
+        .ev.rotate { border-left-color: var(--amber); background: rgba(245,158,11,.08); }
+        .ev-ts { color: var(--text2); font-size: 0.7rem; font-family: 'JetBrains Mono', monospace; }
+        .ev-t { font-weight: 700; margin: 2px 0; font-size: 0.8rem; }
+        .ev-d { color: var(--text2); font-size: 0.72rem; margin-top: 2px; }
+        .empty { color: var(--text2); padding: 12px 0; font-size: 0.85rem; }
+        
+        /* SIGNERS */
+        .sig { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 8px; gap: 8px; }
+        .sig-a { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; word-break: break-all; }
+        .sig-t { font-size: 0.7rem; font-weight: 700; padding: 3px 8px; border-radius: 10px; background: rgba(16,185,129,.15); color: var(--green); border: 1px solid var(--green); white-space: nowrap; }
+        
+        /* PEERS */
+        .peer { padding: 10px 12px; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 8px; }
+        .peer-n { font-weight: 600; font-size: 0.8rem; }
+        .peer-a { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: var(--text2); margin-top: 2px; }
+        
+        /* BUTTONS */
+        .btns { display: flex; flex-wrap: wrap; gap: 8px; padding: 14px 16px; border-top: 1px solid var(--border); }
+        .btn { padding: 8px 16px; border: 1.5px solid var(--blue); background: transparent; color: var(--blue); border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.8rem; transition: all 0.12s; font-family: 'IBM Plex Sans', sans-serif; }
+        .btn:hover { background: var(--blue); color: #000; }
+        .btn.pri { background: var(--blue); color: #000; }
+        .btn.pri:hover { filter: brightness(1.15); }
+        .btn.red { border-color: var(--red); color: var(--red); }
+        .btn.red:hover { background: var(--red); color: #000; }
+        .btn.grn { border-color: var(--green); color: var(--green); }
+        .btn.grn:hover { background: var(--green); color: #000; }
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        
+        /* MODAL */
+        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.7); z-index: 100; align-items: center; justify-content: center; }
+        .modal.open { display: flex; }
+        .m-box { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 28px; max-width: 420px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+        .m-t { font-size: 1.2rem; font-weight: 700; margin-bottom: 20px; }
+        .fg { margin-bottom: 16px; }
+        .fg label { display: block; font-size: 0.75rem; font-weight: 700; color: var(--text2); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em; }
+        .fg input, .fg select { width: 100%; padding: 10px 12px; border: 1.5px solid var(--border); border-radius: 6px; font-size: 0.85rem; font-family: 'JetBrains Mono', monospace; background: var(--surface2); color: var(--text); }
+        .fg input:focus, .fg select:focus { outline: none; border-color: var(--blue); }
+        
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text2); }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="h-left">
+        <h1>⛓ CLIQUE MONITOR</h1>
+        <p id="nodeId">connecting…</p>
+    </div>
+    <div class="h-pills">
+        <div class="pill"><div class="dot bad" id="cDot"></div><span id="cTxt">Offline</span></div>
+        <div class="pill">Block <strong id="hBlk">–</strong></div>
+        <div class="pill">Peers <strong id="hPr">–</strong></div>
+        <div class="pill">Mining <strong id="hMin">–</strong></div>
+    </div>
+</header>
+
+<div class="page">
+    <!-- STATS -->
+    <div class="row r4">
+        <div class="pnl"><div class="pnl-b"><div class="stat-l">Current Block</div><div class="stat-v blue" id="sb">–</div></div></div>
+        <div class="pnl"><div class="pnl-b"><div class="stat-l">Active Signers</div><div class="stat-v green" id="ss">–</div></div></div>
+        <div class="pnl"><div class="pnl-b"><div class="stat-l">Avg Block Time</div><div class="stat-v amber" id="st">–</div></div></div>
+        <div class="pnl"><div class="pnl-b"><div class="stat-l">Forks Detected</div><div class="stat-v red" id="sf">0</div></div></div>
+    </div>
+
+    <!-- BLOCKCHAIN -->
+    <div class="pnl">
+        <div class="pnl-h">
+            <div class="pnl-t">⛓ Blockchain</div>
+            <span class="badge" id="bcnt">0</span>
+        </div>
+        <div id="chainGrid"></div>
+    </div>
+
+    <!-- BLOCK DETAIL -->
+    <div id="detail">
+        <div class="det-h">
+            <div class="det-t" id="dtit">Block #–</div>
+            <button class="det-x" onclick="closeDet()">✕</button>
+        </div>
+        <div class="det-g" id="dgrid"></div>
+    </div>
+
+    <!-- GRAPH + EVENTS -->
+    <div class="row r3">
+        <div class="pnl">
+            <div class="pnl-h"><div class="pnl-t">🌐 Network</div><span class="badge" id="gbdg">0</span></div>
+            <div id="graph"></div>
+        </div>
+        
+        <div class="pnl">
+            <div class="pnl-h"><div class="pnl-t">📋 Events</div><span class="badge" id="ebdg">0</span></div>
+            <div class="pnl-b"><div class="evs" id="evs"><p class="empty">Loading…</p></div></div>
+        </div>
+
+        <div class="pnl">
+            <div class="pnl-h"><div class="pnl-t">⚠ Forks</div><span class="badge red" id="fbdg">0</span></div>
+            <div class="pnl-b"><div class="evs" id="fks"><p class="empty">None ✅</p></div></div>
+        </div>
+    </div>
+
+    <!-- SIGNERS + PEERS -->
+    <div class="row r2">
+        <div class="pnl">
+            <div class="pnl-h"><div class="pnl-t">👥 Signers</div><span class="badge" id="sbdg">0</span></div>
+            <div class="pnl-b" id="sigs"><p class="empty">Loading…</p></div>
+            <div class="btns">
+                <button class="btn pri" onclick="openVote()">🗳 Vote</button>
+                <button class="btn" onclick="updSig()">↺</button>
+            </div>
+        </div>
+
+        <div class="pnl">
+            <div class="pnl-h"><div class="pnl-t">🔗 Peers</div><span class="badge" id="pbdg">0</span></div>
+            <div class="pnl-b" id="prs"><p class="empty">Loading…</p></div>
+        </div>
+    </div>
+
+    <!-- ATTACK SIM -->
+    <div class="pnl">
+        <div class="pnl-h"><div class="pnl-t">🎯 Attack Simulation</div></div>
+        <div class="btns">
+            <button class="btn red" onclick="spamTx()">💣 Spam TX</button>
+            <button class="btn red" onclick="killNode()">⛔ Kill Node</button>
+            <button class="btn red" id="mineBtn" onclick="toggleMine()">▶ Start Mining</button>
+            <button class="btn grn" onclick="mineOne()">⛏ Mine 1 Block</button>
+            <button class="btn" onclick="showPartInfo()">🔌 Partition</button>
+        </div>
+    </div>
+</div>
+
+<!-- VOTE MODAL -->
+<div class="modal" id="voteModal">
+    <div class="m-box">
+        <div class="m-t">🗳 Vote on Signer</div>
+        <div class="fg">
+            <label>Address</label>
+            <input type="text" id="vAddr" placeholder="0x…">
+        </div>
+        <div class="fg">
+            <label>Action</label>
+            <select id="vAct">
+                <option value="true">Add as Signer</option>
+                <option value="false">Remove as Signer</option>
+            </select>
+        </div>
+        <div class="btns" style="padding:0;border:none">
+            <button class="btn grn" onclick="subVote()">Submit</button>
+            <button class="btn" onclick="closeVote()">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<script>
+const PORT = parseInt(window.location.port) || 3001;
+const MPORT = PORT - 3001 + 9001;
+const API = `http://${window.location.hostname}:${MPORT}`;
+const POLL = 2000;
+
+let g = null, gNodes = null, gEdges = null, gInit = false, peerIds = new Set();
+let mining = false;
+
+document.addEventListener('DOMContentLoaded', () => { initG(); tick(); setInterval(tick, POLL); });
+
+async function tick() {
+    await Promise.allSettled([updStatus(), updBlocks(), updEvs(), updForks(), updPeers(), updSig(), updMet(), updG()]);
+}
+
+async function get(p) {
+    const r = await fetch(`${API}/api/${p}`);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r.json();
+}
+
+async function post(p, d) {
+    const r = await fetch(`${API}/api/${p}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(d || {})
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r.json();
+}
+
+async function updStatus() {
+    try {
+        const d = await get('status');
+        set('cDot', 'dot ok', true);
+        set('cTxt', 'Online');
+        set('hBlk', d.blockchain_state?.block_number ?? '–');
+        set('hPr', d.peer_count ?? '–');
+        set('hMin', d.blockchain_state?.mining ? '✅' : '❌');
+        set('nodeId', d.node_info?.name || 'Unknown');
+        set('sb', d.blockchain_state?.block_number ?? '–');
+        mining = d.blockchain_state?.mining || false;
+        const mb = document.getElementById('mineBtn');
+        if (mb) {
+            mb.textContent = mining ? '⛔ Stop Mining' : '▶ Start Mining';
+            mb.className = mining ? 'btn red' : 'btn grn';
+        }
+    } catch {
+        set('cDot', 'dot bad', true);
+        set('cTxt', 'Offline');
+    }
+}
+
+async function updBlocks() {
+    try {
+        const d = await get('blocks?limit=500');
+        if (!d.blocks || !d.blocks.length) {
+            document.getElementById('chainGrid').innerHTML = '<p class="empty" style="grid-column:1/-1;text-align:center">No blocks yet</p>';
+            set('bcnt', '0');
+            return;
+        }
+        
+        const sorted = [...d.blocks].sort((a,b) => a.number - b.number);
+        set('bcnt', `${sorted.length} blocks`);
+        
+        const grid = document.getElementById('chainGrid');
+        grid.innerHTML = '';
+        
+        sorted.forEach(b => {
+            const el = document.createElement('div');
+            el.className = `bk${b.number === 0 ? ' gen' : ''}`;
+            el.dataset.num = b.number;
+            el.innerHTML = `
+                <div class="bk-n">#${b.number}</div>
+                <div class="bk-h">${String(b.hash).substring(2,10)}…</div>
+                <div class="bk-tx"><div class="bk-dot"></div>${b.transactions} tx</div>`;
+            el.onclick = () => showDet(b);
+            grid.appendChild(el);
+        });
+    } catch (e) {
+        console.error('updBlocks:', e);
+    }
+}
+
+function showDet(b) {
+    document.querySelectorAll('.bk.sel').forEach(e => e.classList.remove('sel'));
+    const el = document.querySelector(`.bk[data-num="${b.number}"]`);
+    if (el) el.classList.add('sel');
+    
+    const ts = b.timestamp ? new Date(b.timestamp * 1000).toLocaleString() : '–';
+    const gu = Number(b.gasUsed || 0).toLocaleString();
+    const gl = Number(b.gasLimit || 0).toLocaleString();
+    const gr = (b.gasLimit && b.gasUsed) ? ((b.gasUsed / b.gasLimit) * 100).toFixed(1) + '%' : '–';
+    
+    set('dtit', `Block #${b.number}`);
+    
+    document.getElementById('dgrid').innerHTML = [
+        { l: 'Block Number', v: '#' + b.number, c: 'blue' },
+        { l: 'Timestamp', v: ts, c: '' },
+        { l: 'Miner (Sealer)', v: b.miner || '0x0000000000000000000000000000000000000000', c: 'green' },
+        { l: 'Transactions', v: b.transactions ?? 0, c: '' },
+        { l: 'Gas Used', v: gu, c: '' },
+        { l: 'Gas Limit', v: gl, c: '' },
+        { l: 'Gas Utilisation', v: gr, c: '' },
+        { l: 'Block Hash', v: b.hash || '–', c: 'blue' },
+        { l: 'Parent Hash', v: b.parentHash || '–', c: 'blue' },
+    ].map(f => `<div class="det-f"><div class="det-l">${f.l}</div><div class="det-v ${f.c}">${f.v}</div></div>`).join('');
+    
+    document.getElementById('detail').classList.add('show');
+}
+
+function closeDet() {
+    document.getElementById('detail').classList.remove('show');
+    document.querySelectorAll('.bk.sel').forEach(e => e.classList.remove('sel'));
+}
+
+async function updEvs() {
+    const d = await get('events/consensus?limit=100');
+    set('ebdg', d.count);
+    const el = document.getElementById('evs');
+    if (!d.events?.length) { el.innerHTML = '<p class="empty">No events</p>'; return; }
+    
+    el.innerHTML = [...d.events].reverse().slice(0,40).map(e => {
+        const cls = e.type === 'BLOCK_SEALED' ? 'seal'
+                  : e.type === 'CONSENSUS_STALL' ? 'stall'
+                  : e.type === 'SIGNER_ROTATION' ? 'rotate' : '';
+        const ts = new Date(e.timestamp).toLocaleTimeString();
+        let det = '';
+        if (e.type === 'BLOCK_SEALED') det = `#${e.block_number} · ${(e.miner||'').substring(0,10)}… · ${e.transactions}tx`;
+        if (e.type === 'CONSENSUS_STALL') det = e.message || '';
+        if (e.type === 'SIGNER_ROTATION') det = `+${(e.added||[]).length} −${(e.removed||[]).length}`;
+        return `<div class="ev ${cls}">
+            <div class="ev-ts">${ts}</div>
+            <div class="ev-t">${e.type.replace(/_/g,' ')}</div>
+            ${det ? `<div class="ev-d">${det}</div>` : ''}
+        </div>`;
+    }).join('');
+}
+
+async function updForks() {
+    const d = await get('events/forks');
+    set('sf', d.total_forks ?? 0);
+    set('fbdg', d.total_forks ?? 0);
+    const el = document.getElementById('fks');
+    if (!d.events?.length) { el.innerHTML = '<p class="empty">None ✅</p>'; return; }
+    
+    el.innerHTML = [...d.events].reverse().map(e => `
+        <div class="ev fork">
+            <div class="ev-ts">${new Date(e.timestamp).toLocaleTimeString()}</div>
+            <div class="ev-t">⚠ Fork @ #${e.block_number}</div>
+            <div class="ev-d">Severity: ${e.severity} | Reorg: ${e.reorg_depth}</div>
+            <div class="ev-d" style="margin-top:3px">Old: ${String(e.old_hash).substring(0,16)}…<br>New: ${String(e.new_hash).substring(0,16)}…</div>
+        </div>`).join('');
+}
+
+async function updPeers() {
+    const d = await get('peers');
+    set('pbdg', d.count);
+    set('hPr', d.count);
+    const el = document.getElementById('prs');
+    if (!d.peers?.length) { el.innerHTML = '<p class="empty">No peers</p>'; return; }
+    el.innerHTML = d.peers.map(p => `
+        <div class="peer">
+            <div class="peer-n">${p.name || '–'}</div>
+            <div class="peer-a">${p.network?.remoteAddress || '–'}</div>
+        </div>`).join('');
+}
+
+async function updSig() {
+    const d = await get('signers');
+    set('sbdg', d.count);
+    set('ss', d.count);
+    const el = document.getElementById('sigs');
+    if (!d.signers?.length) { el.innerHTML = '<p class="empty">No signers</p>'; return; }
+    const pending = new Set(Object.keys(d.proposals || {}).map(k => k.toLowerCase()));
+    el.innerHTML = d.signers.map(s => `
+        <div class="sig">
+            <span class="sig-a">${s}</span>
+            <span class="sig-t">${pending.has(s.toLowerCase()) ? '⏳ Pending' : '✅ Active'}</span>
+        </div>`).join('');
+}
+
+async function updMet() {
+    const d = await get('metrics');
+    set('st', d.average_block_time ? d.average_block_time.toFixed(1) + 's' : '–');
+}
+
+function initG() {
+    const c = document.getElementById('graph');
+    gNodes = new vis.DataSet([]);
+    gEdges = new vis.DataSet([]);
+    g = new vis.Network(c, { nodes: gNodes, edges: gEdges }, {
+        nodes: { shape: 'dot', font: { color: '#e4e7ec', size: 11 }, borderWidth: 2, chosen: false },
+        edges: { color: { color: '#3a4152' }, width: 2, smooth: { type: 'curvedCW', roundness: 0.2 }, chosen: false },
+        physics: { enabled: true, stabilization: { iterations: 100, fit: true }, barnesHut: { gravitationalConstant: -3000, springLength: 100 } },
+        interaction: { dragNodes: false, zoomView: false, hover: true },
+    });
+    g.once('stabilizationIterationsDone', () => { g.setOptions({ physics: { enabled: false } }); gInit = true; });
+}
+
+async function updG() {
+    if (!g) return;
+    try {
+        const [pd, sd] = await Promise.all([get('peers'), get('status')]);
+        const bn = sd.blockchain_state?.block_number ?? '?';
+        const m = sd.blockchain_state?.mining;
+        
+        const thisN = { id: 'this', label: `This\n#${bn}`, color: { background: m ? '#3b82f6' : '#252b3b', border: '#3b82f6' }, size: 30 };
+        if (!gNodes.get('this')) gNodes.add(thisN);
+        else gNodes.update(thisN);
+        
+        const cur = new Set((pd.peers || []).map((_, i) => `p${i}`));
+        peerIds.forEach(id => {
+            if (!cur.has(id)) {
+                gNodes.remove(id);
+                gEdges.remove(`e${id}`);
+                peerIds.delete(id);
+            }
+        });
+        
+        (pd.peers || []).forEach((p, i) => {
+            const id = `p${i}`;
+            const ip = (p.network?.remoteAddress || '').split(':')[0] || '?';
+            const nm = (p.name || 'peer').split('/')[0];
+            if (!peerIds.has(id)) {
+                gNodes.add({ id, label: `${nm}\n${ip}`, color: { background: '#10b981', border: '#10b981' }, size: 20 });
+                gEdges.add({ id: `e${id}`, from: 'this', to: id });
+                peerIds.add(id);
+                if (gInit) {
+                    g.setOptions({ physics: { enabled: true } });
+                    setTimeout(() => g.setOptions({ physics: { enabled: false } }), 1000);
+                }
+            } else {
+                gNodes.update({ id, label: `${nm}\n${ip}` });
+            }
+        });
+        
+        set('gbdg', `${pd.count} peer${pd.count !== 1 ? 's' : ''}`);
+    } catch (e) {
+        console.debug('graph:', e);
+    }
+}
+
+async function mineOne() {
+    try {
+        const d = await post('transaction/send');
+        if (d.success) alert('✅ TX sent\n' + d.transaction_hash);
+        else alert('❌ ' + (d.error || 'error'));
+    } catch (e) { alert('❌ ' + e.message); }
+}
+
+function openVote() { document.getElementById('voteModal').classList.add('open'); }
+function closeVote() { document.getElementById('voteModal').classList.remove('open'); }
+
+async function subVote() {
+    const addr = document.getElementById('vAddr').value.trim();
+    const auth = document.getElementById('vAct').value === 'true';
+    if (!addr) { alert('Address required'); return; }
+    try {
+        await post('vote', { address: addr, authorize: auth });
+        alert(`✅ Vote: ${auth ? 'ADD' : 'REMOVE'}\n${addr}`);
+        closeVote();
+        updSig();
+    } catch (e) { alert('❌ ' + e.message); }
+}
+
+async function spamTx() {
+    const n = prompt('Transactions to spam?', '50');
+    if (!n) return;
+    let ok = 0;
+    for (let i = 0; i < parseInt(n); i++) {
+        try { await post('transaction/send', { value: 1 }); ok++; } catch { }
+    }
+    alert(`✅ Sent ${ok}/${n} transactions`);
+}
+
+async function killNode() {
+    if (!confirm('Kill this node (stop Geth)?')) return;
+    alert('⛔ Run: sudo systemctl stop geth');
+}
+
+async function toggleMine() {
+    try {
+        if (mining) {
+            // Stop mining via RPC
+            const r = await fetch(`${API.replace(MPORT, '8545')}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'miner_stop', params: [] })
+            });
+            await r.json();
+            alert('⛔ Mining stopped');
+        } else {
+            // Start mining via RPC
+            const r = await fetch(`${API.replace(MPORT, '8545')}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'miner_start', params: [1] })
+            });
+            await r.json();
+            alert('▶ Mining started');
+        }
+        setTimeout(updStatus, 500);
+    } catch (e) {
+        alert('❌ ' + e.message);
+    }
+}
+
+function showPartInfo() {
+    alert(`🔌 Network Partition
+
+Block another VM:
+sudo iptables -A INPUT -s <IP> -j DROP
+sudo iptables -A OUTPUT -d <IP> -j DROP
+
+Restore:
+sudo iptables -F`);
+}
+
+function set(id, v, cls = false) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (cls) el.className = v;
+    else el.textContent = v;
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,30 @@
+[Unit]
+Description=Geth Node (Peer)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/local/bin/geth \
+  --datadir /opt/ethereum/data \
+  --networkid 1337 \
+  --port 30303 \
+  --nat extip:10.0.0.12 \
+  --http --http.addr 0.0.0.0 --http.port 8545 \
+  --bootnodes "enode://10b2a08d9b7b48083ad5616a80b955ab23872f3ae71c570edf44e39c2bdb9e1aa4d81cc1f88e1ab1c9072096e769a838016b8b6c9b4d302f8f9f6b042720728c@10.0.0.11:30303,enode://f03af5daa83f43b5b55229add4dc737c399299473322785c2f3477e4bbfae4656ccf01237fc2a6a127ca03499ea5b6409344c9f6146b6be349508ab68651b7ee@10.0.0.13:30303" \
+  --http.api eth,net,web3,personal,admin,miner,debug,txpool,clique \
+  --http.corsdomain "*" \
+  --ws --ws.addr 0.0.0.0 --ws.port 8546 \
+  --ws.api eth,net,web3,personal,admin,miner,debug,txpool,clique \
+  --ws.origins "*" \
+  --unlock 0x12C74Fd91ac8fa8674fD7A7B00EDB823fFC445CA \
+  --password /opt/ethereum/config/password.txt \
+  --mine --miner.etherbase 0x12C74Fd91ac8fa8674fD7A7B00EDB823fFC445CA \
+  --allow-insecure-unlock \
+  --maxpeers 10 \
+  --verbosity 3
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

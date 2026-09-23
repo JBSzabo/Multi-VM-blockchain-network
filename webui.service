@@ -1,0 +1,15 @@
+[Unit]
+Description=Clique Web UI
+After=monitor.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/ethereum/web
+Environment="WEB_PORT=3002"
+ExecStart=/usr/bin/node /opt/ethereum/web/server.js
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

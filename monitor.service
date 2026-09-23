@@ -1,0 +1,16 @@
+[Unit]
+Description=Clique Monitor Service
+After=geth.service
+Requires=geth.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/ethereum/monitoring
+Environment="MONITOR_PORT=9002"
+ExecStart=/opt/ethereum/monitoring/venv/bin/python3 /opt/ethereum/monitoring/monitor.py
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target
