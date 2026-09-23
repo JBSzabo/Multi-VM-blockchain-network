@@ -13,6 +13,6 @@ sudo geth attach --exec 'admin.peers' /opt/ethereum/data/geth.ipc
 
 geth attach http://127.0.0.1:8545
 
-admin.addPeer("enode://10b2a08d9b7b48083ad5616a80b955ab23872f3ae71c570edf44e39c2bdb9e1aa4d81cc1f88e1ab1c9072096e769a838016b8b6c9b4d302f8f9f6b042720728c@10.0.0.11:30303")
-admin.addPeer("enode://a134264ea9e1c78dda04a0d0b9ac1e68076533f1e64c98b915ce24184760dbd1242300e2468deb9248254fca66fd90dfd5753b0ecd4080a824c2139c87aed761@10.0.0.12:30303")
-admin.addPeer("enode://f03af5daa83f43b5b55229add4dc737c399299473322785c2f3477e4bbfae4656ccf01237fc2a6a127ca03499ea5b6409344c9f6146b6be349508ab68651b7ee@10.0.0.13:30303")
+admin.nodeInfo.enode
+admin.addPeer("")
+admin.peers
